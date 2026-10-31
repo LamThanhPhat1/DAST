@@ -113,3 +113,67 @@ footer { text-align:center; padding:25px; color:#83958e; font-size:11px; border-
 .review-item { border-left:3px solid #bdebd7; background:#f6faf8; border-radius:0 10px 10px 0; padding:11px 14px; }
 .review-item h4 { margin:0 0 4px; font-size:14px; }
 .review-item p { margin:0; color:#62766f; font-size:12.5px; line-height:1.6; }
+
+/* ===== v1.5: 10 vòng, giai đoạn, danh hiệu, biểu đồ ===== */
+.stage-banner { display:flex; gap:22px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:16px; padding:16px 20px; margin-bottom:18px; flex-wrap:wrap; }
+.stage-dots { display:flex; gap:6px; flex-wrap:wrap; }
+.dot { width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-size:11px; font-weight:800; background:#eef3f1; color:#8aa097; }
+.dot.done { background:#bdebd7; color:#13694a; }
+.dot.current { background:var(--green); color:#fff; box-shadow:0 0 0 4px #d6f1e5; }
+.stage-text small { color:var(--green); font-weight:800; letter-spacing:1px; font-size:10px; }
+.stage-text b { display:block; font-size:15px; margin:2px 0; }
+.stage-text p { margin:0; color:var(--muted); font-size:12px; line-height:1.55; }
+.lesson-badge { display:flex; align-items:center; gap:6px; font-weight:800; color:#a56a00 !important; }
+.badge-shelf { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; margin-top:12px; }
+.badge-item { display:flex; gap:11px; align-items:flex-start; border:1.5px dashed #d3ddd8; border-radius:12px; padding:12px; background:#fafcfb; opacity:.7; }
+.badge-item.earned { border:1.5px solid #f0cf6a; background:#fff8e3; opacity:1; }
+.badge-ico { width:34px; height:34px; flex:none; border-radius:10px; display:grid; place-items:center; background:#e7eeea; color:#7f948b; }
+.badge-item.earned .badge-ico { background:#ffe9a8; color:#9a6400; }
+.badge-item h4 { margin:0 0 2px; font-size:13px; }
+.badge-item p { margin:0; font-size:12px; color:var(--muted); }
+.badge-item small { display:block; margin-top:3px; font-size:11px; font-weight:700; color:var(--green); }
+.trend { margin:12px 0 4px; }
+.trend svg { width:100%; height:auto; display:block; }
+.trend-axis { stroke:#dfe8e4; stroke-width:1; }
+.trend-comp { fill:none; stroke:#16a06d; stroke-width:2.4; stroke-linejoin:round; }
+.trend-cap { fill:none; stroke:#e39a2d; stroke-width:2; stroke-dasharray:4 3; stroke-linejoin:round; }
+.trend-dot { fill:#16a06d; }
+.trend-legend { display:flex; gap:14px; font-size:11px; font-weight:700; margin-top:4px; }
+.lg-comp { color:#16a06d; } .lg-cap { color:#e39a2d; }
+.score-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin:16px 0; }
+.score-row div { background:rgba(255,255,255,.14); border-radius:12px; padding:12px 14px; }
+.score-row small { display:block; opacity:.8; font-size:11px; margin-bottom:4px; }
+.score-row b { font-size:20px; }
+.record { display:flex; align-items:center; gap:6px; font-weight:800; color:#ffe9a8; }
+.note.light { color:rgba(255,255,255,.75); }
+.result .primary { margin-top:10px; }
+
+/* ===== v1.6: chuyển đổi toàn diện ===== */
+.action-grid.five { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:14px; }
+.action-card.special { border:1.5px solid #f0cf6a; background:linear-gradient(180deg,#fffaf0,#fff); }
+.action-card.special .action-icon { background:#ffe9a8; color:#9a6400; }
+.action-card.special:disabled { border-style:dashed; background:#fafaf7; }
+.action-card:disabled small { color:#9aa8a1; }
+
+/* ===== v1.7: tình huống, rủi ro ===== */
+.choice-card { background:#f6f3ff; border:1px solid #d9d0f5; border-radius:16px; padding:20px 22px; margin-bottom:18px; }
+.choice-card h4 { margin:2px 0 4px; font-size:16px; }
+.choice-card .card-title { color:#5b43b5; }
+.choice-desc { margin:0 0 12px; color:#5a5675; font-size:13px; line-height:1.55; }
+.choice-options { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px; }
+.choice-option { text-align:left; background:#fff; border:1.5px solid #ddd6f3; border-radius:12px; padding:12px 14px; cursor:pointer; display:flex; flex-direction:column; gap:4px; color:var(--dark); transition:.2s; }
+.choice-option b { font-size:13.5px; }
+.choice-option small { color:#6b6790; font-size:11.5px; line-height:1.5; }
+.choice-option:hover:not(:disabled) { border-color:#8a73e0; background:#fbfaff; }
+.choice-option:disabled { cursor:default; opacity:.7; }
+.choice-option.chosen { border-color:#6b4fd6; background:#ece6ff; opacity:1; }
+.choice-result { margin-top:12px; padding:12px 14px; background:#fff; border-radius:12px; font-size:13px; line-height:1.6; color:#3d3a5c; }
+.choice-learn { display:block; margin-top:6px; color:#6b6790; font-size:12px; }
+.chance { display:block; margin-top:4px; font-style:normal; font-size:11.5px; font-weight:800; color:var(--green); }
+.lesson-card.fail { background:#fff3f0; border-color:#f1c9bf; }
+.lesson-card.fail .lesson-icon { background:#fbd9d1; color:#b4432c; }
+.lesson-card.fail small { color:#b4432c; }
+.result-ok { font-weight:800; color:#16805a !important; }
+.result-fail { font-weight:800; color:#b4432c !important; }
+.review.choices { margin-bottom:12px; }
+.review-item.alt { border-left-color:#cbbdf3; background:#f8f6ff; }
