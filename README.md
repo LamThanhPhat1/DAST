@@ -19,6 +19,7 @@ Build bản nộp: `npm run build` (kết quả trong `dist/`).
 - Mỗi lần đầu tư vào cùng một hướng, **lần sau đắt hơn** (+15% chi phí gốc mỗi lần; chuyển đổi toàn diện +35%).
 - **Chuyển đổi toàn diện**: nâng cả ba chỉ số cùng lúc, thành công 60% cơ bản, dùng xong phải chờ 2 lượt. Đây là cách duy nhất để chạm 100/100.
 - Chỉ số không được đầu tư xuống cấp nhẹ mỗi vòng (hao mòn).
+- Trang tự cuộn theo luồng chơi (sang vòng mới, sau khi trả lời câu hỏi hoặc xử lý tình huống, khi kết thúc) và có thông báo nhanh kết quả vòng trước.
 - Lợi nhuận phụ thuộc công nghệ, nhân lực, thị trường, sự kiện và danh hiệu.
 - Năng lực cạnh tranh = 35% công nghệ + 30% nhân lực + 35% thị trường.
 - 5 danh hiệu mở khóa vĩnh viễn khi đạt ngưỡng chỉ số.

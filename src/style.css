@@ -177,3 +177,15 @@ footer { text-align:center; padding:25px; color:#83958e; font-size:11px; border-
 .result-fail { font-weight:800; color:#b4432c !important; }
 .review.choices { margin-bottom:12px; }
 .review-item.alt { border-left-color:#cbbdf3; background:#f8f6ff; }
+
+/* ===== v1.8: tự cuộn và thông báo kết quả ===== */
+[id^="sim-"] { scroll-margin-top: 120px; }
+.toast { position:fixed; top:86px; left:50%; transform:translateX(-50%); z-index:30; display:flex; align-items:center; gap:10px; width:min(600px, calc(100% - 24px)); background:#12372c; color:#fff; border-radius:14px; padding:11px 12px 11px 16px; box-shadow:0 12px 32px rgba(0,0,0,.22); font-size:13px; line-height:1.5; animation:toast-in .25s ease; }
+.toast.fail { background:#7a2d1d; }
+.toast-text { flex:1; }
+.toast button { flex:none; background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:9px; padding:7px 11px; font-size:12px; font-weight:700; cursor:pointer; }
+.toast button:hover { background:rgba(255,255,255,.28); }
+.toast .toast-x { padding:7px 10px; font-size:16px; line-height:1; }
+@keyframes toast-in { from { opacity:0; transform:translate(-50%,-8px); } to { opacity:1; transform:translate(-50%,0); } }
+@media (prefers-reduced-motion: reduce) { .toast { animation:none; } }
+@media (max-width:760px) { .toast { top:118px; flex-wrap:wrap; } }

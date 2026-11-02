@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BarChart3, Factory, Globe2, Lightbulb, RotateCcw, TrendingUp,
@@ -20,11 +20,23 @@ function saveBest(v) {
   try { localStorage.setItem(BEST_KEY, String(v)); } catch { /* bỏ qua */ }
 }
 
+// Cuộn mượt tới một phần tử sau khi giao diện đã vẽ xong.
+function jumpTo(id) {
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  }, 90);
+}
+
 function App() {
   const [page, setPage] = useState("home");
   const [state, setState] = useState(E.makeInitial);
   const [best, setBest] = useState(loadBest);
   const [newRecord, setNewRecord] = useState(false);
+  const [toast, setToast] = useState(null);
+  const prev = useRef({ page: "home", round: 1, finished: false, quizPicked: null, choicePicked: null });
 
   const result = E.rate(state);
   const score = E.calcScore(state);
@@ -41,9 +53,52 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.finished]);
 
+  // Tự cuộn tới bước tiếp theo để người chơi không phải kéo thủ công.
+  useEffect(() => {
+    const p = prev.current;
+    const now = {
+      page,
+      round: state.round,
+      finished: state.finished,
+      quizPicked: state.quiz.picked,
+      choicePicked: state.choice ? state.choice.picked : null,
+    };
+    prev.current = now;
+    if (page !== "simulation" || p.page !== "simulation") return;
+
+    if (state.round < p.round || (p.finished && !state.finished)) {
+      window.scrollTo({ top: 0, behavior: "auto" }); // chơi lại
+    } else if (state.finished && !p.finished) {
+      jumpTo("sim-result");
+    } else if (state.round !== p.round) {
+      jumpTo("sim-event"); // vòng mới: sự kiện, tình huống bất ngờ và câu hỏi nằm ngay bên dưới
+    } else if (now.choicePicked !== null && p.choicePicked === null) {
+      jumpTo("sim-choice-result");
+    } else if (now.quizPicked !== null && p.quizPicked === null) {
+      jumpTo("sim-quiz-explain");
+    }
+  }, [state, page]);
+
+  // Thông báo nhanh kết quả của vòng vừa xong
+  useEffect(() => {
+    if (!state.last) return;
+    if (state.finished) { setToast(null); return; }
+    const l = state.last;
+    const name = actions[l.action].title;
+    const head =
+      l.action === "reserve" ? `${name}.` : l.success ? `${name} thành công.` : `${name} thất bại, chỉ thu được một phần nhỏ.`;
+    const text =
+      `Vòng ${l.round}: ${head} Lợi nhuận ròng ${l.profit >= 0 ? "+" : ""}${l.profit} triệu.` +
+      (l.newBadges.length ? ` Mở khóa danh hiệu: ${l.newBadges.join(", ")}.` : "");
+    setToast({ text, ok: l.action === "reserve" || l.success });
+    const t = setTimeout(() => setToast(null), 9000);
+    return () => clearTimeout(t);
+  }, [state.last]);
+
   function reset() {
     setState(E.makeInitial());
     setNewRecord(false);
+    setToast(null);
     setPage("simulation");
   }
 
@@ -166,7 +221,7 @@ function App() {
             </section>
 
             {state.last && (
-              <section className={state.last.success ? "lesson-card" : "lesson-card fail"}>
+              <section id="sim-lesson" className={state.last.success ? "lesson-card" : "lesson-card fail"}>
                 <div className="lesson-icon"><BookOpen size={20}/></div>
                 <div>
                   <small>BÀI HỌC VÒNG {state.last.round}</small>
@@ -186,7 +241,7 @@ function App() {
             )}
 
             {!state.finished && (
-              <section className="event-card">
+              <section id="sim-event" className="event-card">
                 <div className="event-icon"><AlertTriangle size={20}/></div>
                 <div>
                   <small>SỰ KIỆN VÒNG {state.round}</small>
@@ -218,7 +273,7 @@ function App() {
                   })}
                 </div>
                 {state.choice.picked !== null && (
-                  <div className="choice-result">
+                  <div id="sim-choice-result" className="choice-result">
                     <b>{state.choice.result.text}</b> ({E.fxText(state.choice.result.fx)})
                     <span className="choice-learn">{state.choice.item.learn}</span>
                   </div>
@@ -246,7 +301,7 @@ function App() {
                   })}
                 </div>
                 {state.quiz.picked !== null && (
-                  <div className="quiz-explain">
+                  <div id="sim-quiz-explain" className="quiz-explain">
                     <b>{state.quiz.picked === state.quiz.item.answer ? "Chính xác!" : "Chưa đúng."}</b> {state.quiz.item.explain}
                   </div>
                 )}
@@ -319,7 +374,7 @@ function App() {
             </section>
 
             {state.finished && (
-              <section className="result">
+              <section id="sim-result" className="result">
                 <span className="badge light">KẾT QUẢ</span>
                 <h2>{result.label}</h2>
                 <p>{result.text}</p>
@@ -413,6 +468,14 @@ function App() {
           </>
         )}
       </main>
+
+      {toast && page === "simulation" && (
+        <div className={toast.ok ? "toast" : "toast fail"} role="status">
+          <div className="toast-text">{toast.text}</div>
+          <button onClick={() => { jumpTo("sim-lesson"); setToast(null); }}>Xem bài học</button>
+          <button className="toast-x" aria-label="Đóng" onClick={() => setToast(null)}>×</button>
+        </div>
+      )}
 
       <footer>SME Mekong · Sản phẩm sáng tạo Topic 4</footer>
     </div>
