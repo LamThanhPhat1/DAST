@@ -120,7 +120,7 @@ function App() {
         </nav>
       </header>
 
-      <main className="container">
+      <main className={page === "simulation" ? "container simulation-page" : "container"}>
         {page === "home" && (
           <>
             <section className="hero">
