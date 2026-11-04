@@ -189,3 +189,132 @@ footer { text-align:center; padding:25px; color:#83958e; font-size:11px; border-
 @keyframes toast-in { from { opacity:0; transform:translate(-50%,-8px); } to { opacity:1; transform:translate(-50%,0); } }
 @media (prefers-reduced-motion: reduce) { .toast { animation:none; } }
 @media (max-width:760px) { .toast { top:118px; flex-wrap:wrap; } }
+
+/* ===== Simulation refresh: clearer hierarchy and calmer visual rhythm ===== */
+.simulation-page { max-width: 1040px; }
+.simulation-page .page-heading {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.simulation-page .page-heading h2 { letter-spacing: -.6px; }
+.simulation-page .page-heading .badge { background: #e7f5ee; }
+.simulation-page .stage-banner {
+  background: #123d31;
+  border: 0;
+  color: #fff;
+  padding: 18px 22px;
+  box-shadow: 0 10px 24px rgba(18, 61, 49, .12);
+}
+.simulation-page .stage-text small { color: #8fe0bc; }
+.simulation-page .stage-text p { color: #c4ded3; }
+.simulation-page .dot { background: rgba(255,255,255,.12); color: #b6d2c7; }
+.simulation-page .dot.done { background: #65c99d; color: #113c2f; }
+.simulation-page .dot.current { background: #fff; color: var(--green); box-shadow: 0 0 0 4px rgba(255,255,255,.16); }
+.simulation-page .stats { gap: 10px; margin-bottom: 22px; }
+.simulation-page .stat-card {
+  padding: 15px 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(18, 54, 43, .04);
+}
+.simulation-page .stat-card strong { font-size: 23px; margin: 11px 0 8px; }
+.simulation-page .event-card,
+.simulation-page .choice-card,
+.simulation-page .quiz-card,
+.simulation-page .lesson-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(18, 54, 43, .035);
+}
+.simulation-page .event-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(190px, .7fr);
+  gap: 16px;
+  align-items: center;
+  background: #fff;
+  border: 0;
+  border-left: 4px solid #e6a62c;
+  border-radius: 10px;
+  padding: 14px 18px 14px 14px;
+  box-shadow: 0 4px 14px rgba(18, 54, 43, .05);
+}
+.simulation-page .event-icon {
+  width: 42px;
+  height: 42px;
+  background: #fff3d4;
+  color: #a56a00;
+}
+.simulation-page .event-card > div:nth-child(2) { min-width: 0; }
+.simulation-page .event-card small {
+  display: block;
+  color: #a56a00;
+  font-size: 9px;
+  letter-spacing: 1.1px;
+}
+.simulation-page .event-card h4 {
+  margin: 3px 0 3px;
+  font-size: 15px;
+}
+.simulation-page .event-card p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.simulation-page .event-card .event-hint {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #fff8e7;
+  color: #76500b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.simulation-page .choice-card {
+  background: #fbfaff;
+  border-color: #e2dcf5;
+}
+.simulation-page .quiz-card {
+  border-top: 3px solid #6b4fd6;
+  padding-top: 19px;
+}
+.simulation-page .card {
+  border-radius: 12px;
+  padding: 21px;
+  box-shadow: 0 4px 14px rgba(18, 54, 43, .035);
+}
+.simulation-page .section-title.compact {
+  padding-bottom: 14px;
+  border-bottom: 1px solid #edf2ef;
+}
+.simulation-page .section-title.compact h3 { margin-bottom: 8px; }
+.simulation-page .section-title.compact .note { margin-top: 7px; }
+.simulation-page .action-grid.five { gap: 10px; }
+.simulation-page .action-card {
+  min-height: 210px;
+  padding: 17px;
+  border-radius: 12px;
+  background: #fbfdfc;
+}
+.simulation-page .action-card h4 { font-size: 14px; margin: 12px 0 6px; }
+.simulation-page .action-card p { min-height: 56px; margin: 0 0 9px; }
+.simulation-page .action-card.special { background: linear-gradient(180deg, #fffaf0, #fffdf8); }
+.simulation-page .two-col { gap: 14px; }
+.simulation-page .history { max-height: 205px; }
+.simulation-page .result { border-radius: 12px; box-shadow: 0 10px 26px rgba(18, 61, 49, .15); }
+@media (max-width: 850px) {
+  .simulation-page .action-grid.five { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .simulation-page .page-heading { padding-bottom: 16px; }
+  .simulation-page .stage-banner { padding: 16px; gap: 14px; }
+  .simulation-page .action-grid.five { grid-template-columns: 1fr; }
+  .simulation-page .action-card { min-height: 0; }
+  .simulation-page .event-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 11px;
+    padding-right: 14px;
+  }
+  .simulation-page .event-card .event-hint {
+    grid-column: 1 / -1;
+    margin-left: 53px;
+  }
+}
