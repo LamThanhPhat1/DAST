@@ -627,7 +627,7 @@ export function makeInitial() {
     usedQuiz: [],
     learned: [],
     badges: [],
-    trend: [{ round: 0, competition, capital: START_CAPITAL }],
+    trend: [{ round: 0, competition, capital: START_CAPITAL, ...base }],
     last: null,
     history: [`Bắt đầu với ${START_CAPITAL} triệu đồng vốn.`],
     finished: false,
@@ -751,7 +751,10 @@ export function invest(state, type) {
 
   next.capital += profit;
   next.competition = calcCompetition(next);
-  next.trend = [...state.trend, { round: state.round, competition: next.competition, capital: next.capital }];
+  next.trend = [
+    ...state.trend,
+    { round: state.round, competition: next.competition, capital: next.capital, technology: next.technology, human: next.human, market: next.market },
+  ];
   next.learned = [
     ...state.learned,
     {
@@ -977,3 +980,49 @@ export function rate(s) {
   return { label: "Tụt hậu", text: "Không tái đầu tư đủ khiến doanh nghiệp bị tụt lại so với đối thủ trong hội nhập." };
 }
 export const RATE = { excellent: 90, top: { c: 78, cap: 300 }, good: 62, ok: 50 };
+
+// Xem trước tác động của một hành động (dùng cho gợi ý khi rê chuột và nhãn trên thẻ).
+export function previewAction(type, state) {
+  const keys = ["technology", "human", "market"];
+  const ok = {};
+  const fail = {};
+  keys.forEach((k) => {
+    const room = 100 - state[k];
+    if (type === "reserve") {
+      ok[k] = fail[k] = -Math.min(2, state[k]);
+    } else if (type === "overhaul") {
+      const g = overhaulGain(state[k]);
+      ok[k] = Math.min(g, room);
+      fail[k] = Math.min(Math.max(1, Math.round(g * FAIL_FACTOR.overhaul)), room);
+    } else if (k === type) {
+      const g = gain(state[k]);
+      ok[k] = Math.min(g, room);
+      fail[k] = Math.min(Math.max(1, Math.round(g * FAIL_FACTOR.single)), room);
+    } else {
+      ok[k] = fail[k] = -Math.min(1, state[k]);
+    }
+  });
+  const cost = costOf(type, state);
+  return { ok, fail, cost, capital: type === "reserve" ? 40 : -cost };
+}
+
+// Phong cách điều hành, suy ra từ cách người chơi phân bổ vốn.
+export function playStyle(s) {
+  const rounds = s.trend.length - 1;
+  const u = s.uses;
+  const singles = u.technology + u.human + u.market;
+  const reserve = Math.max(0, rounds - singles - u.overhaul);
+  if (u.overhaul >= 3) {
+    return { label: "Nhà chuyển đổi toàn diện", text: "Bạn hay chọn bứt phá đồng bộ: nâng cả công nghệ, nhân lực và thị trường cùng lúc. Hiệu quả cao nhưng đòi hỏi vốn lớn và chấp nhận rủi ro." };
+  }
+  const focus = [
+    ["technology", "Nhà đổi mới công nghệ", "Bạn ưu tiên công nghệ để nâng năng suất. Hãy cân bằng thêm với nhân lực và thị trường để doanh nghiệp không bị lệch."],
+    ["human", "Người xây dựng đội ngũ", "Bạn đặt nhân lực lên hàng đầu: tay nghề và quản lý tốt giúp thích ứng với biến động. Có thể cần thêm công nghệ để bứt phá."],
+    ["market", "Người mở rộng thị trường", "Bạn tập trung tăng đầu ra và khách hàng. Cần đi kèm công nghệ và nhân lực để đáp ứng đơn hàng."],
+  ].sort((a, b) => u[b[0]] - u[a[0]])[0];
+  if (singles > 0 && u[focus[0]] >= 3 && u[focus[0]] / singles >= 0.5) return { label: focus[1], text: focus[2] };
+  if (reserve >= 4) {
+    return { label: "Người thận trọng giữ vốn", text: "Bạn thích giữ vốn và đi chậm. An toàn về tài chính nhưng bỏ lỡ cơ hội tái đầu tư để tăng năng lực cạnh tranh." };
+  }
+  return { label: "Nhà quản lý cân bằng", text: "Bạn phân bổ vốn khá đều giữa ba hướng, giúp doanh nghiệp phát triển cân đối và ít bị lệch." };
+}
