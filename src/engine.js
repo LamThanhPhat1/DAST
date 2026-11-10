@@ -2,7 +2,6 @@
 
 export const TOTAL_ROUNDS = 10;
 export const START_CAPITAL = 400; // triệu đồng
-export const QUIZ_BONUS = 15; // thưởng khi trả lời đúng
 
 export const STAGES = [
   { name: "Khởi động", goal: "Đặt nền móng: nâng ba chỉ số năng lực và giữ vốn khỏe." },
@@ -21,11 +20,10 @@ export const OVERHAUL_DIV = 125;
 // Mỗi lần đầu tư vào cùng một hướng, lần sau tốn thêm bấy nhiêu phần trăm chi phí gốc.
 export const ESCALATION = { technology: 0.15, human: 0.15, market: 0.15, overhaul: 0.35 };
 
-// Rủi ro: xác suất thành công cơ bản, cộng thêm khi trả lời đúng câu hỏi và theo số danh hiệu.
-export const BASE_SUCCESS = { technology: 0.75, human: 0.85, market: 0.7, overhaul: 0.6 };
-export const QUIZ_SUCCESS_BONUS = 0.1;
-export const BADGE_SUCCESS_BONUS = 0.03;
-export const MAX_SUCCESS = 0.95;
+// Mỗi lần chọn đầu tư sẽ hiện câu hỏi kiến thức: trả lời đúng thì đầu tư thành công, sai thì thất bại.
+// Tích lũy dự trữ không có câu hỏi. Chuyển đổi toàn diện có 3 câu liên tiếp (mỗi hướng một câu).
+export const QUESTIONS_PER = { technology: 1, human: 1, market: 1, overhaul: 3, reserve: 0 };
+export const OVERHAUL_PASS = 2; // chuyển đổi toàn diện thành công khi đúng ít nhất 2/3 câu
 // Khi thất bại, chỉ nhận được phần nhỏ hiệu quả
 export const FAIL_FACTOR = { single: 0.3, overhaul: 0.35 };
 export const FAIL_TEXT = {
@@ -75,13 +73,6 @@ export function costOf(type, state) {
   return Math.round((actions[type].cost * (1 + esc * uses)) / 5) * 5;
 }
 
-export function successChance(type, state) {
-  if (!(type in BASE_SUCCESS)) return 1;
-  let p = BASE_SUCCESS[type] + state.badges.length * BADGE_SUCCESS_BONUS;
-  if (state.quiz.picked !== null && state.quiz.picked === state.quiz.item.answer) p += QUIZ_SUCCESS_BONUS;
-  return Math.min(MAX_SUCCESS, p);
-}
-
 export function lockReason(type, state) {
   if (type === "overhaul" && state.cooldown > 0) return `Đang hồi, còn ${state.cooldown} lượt`;
   return null;
@@ -92,7 +83,7 @@ export const BADGES = [
   { id: "skill", title: "Đội ngũ tay nghề cao", cond: "Nhân lực ≥ 65", bonus: "Thiệt hại từ sự kiện bất lợi giảm một nửa", profit: 0, test: (s) => s.human >= 65 },
   { id: "market", title: "Thị trường đa dạng", cond: "Thị trường ≥ 65", bonus: "Lợi nhuận +6%", profit: 0.06, test: (s) => s.market >= 65 },
   { id: "balance", title: "Năng lực cân bằng", cond: "Cả ba chỉ số ≥ 55", bonus: "Lợi nhuận +5%", profit: 0.05, test: (s) => Math.min(s.technology, s.human, s.market) >= 55 },
-  { id: "scholar", title: "Học giỏi hiểu sâu", cond: "Trả lời đúng ít nhất 6 câu hỏi", bonus: "Lợi nhuận +4%", profit: 0.04, test: (s) => s.quizCorrect >= 6 },
+  { id: "scholar", title: "Học giỏi hiểu sâu", cond: "Trả lời đúng ít nhất 8 câu hỏi", bonus: "Lợi nhuận +4%", profit: 0.04, test: (s) => s.quizCorrect >= 8 },
 ];
 
 // Bài học hiện ra sau khi người chơi chọn hành động
@@ -114,6 +105,19 @@ export const actionLessons = {
   },
 };
 
+
+// Nhãn chủ đề của câu hỏi: hiện trong cửa sổ câu hỏi và phần tổng kết để người chơi biết cần ôn phần nào.
+export const TAGS = {
+  value: "Giá trị & cung cầu",
+  surplus: "Giá trị thặng dư",
+  accum: "Tích lũy tư bản",
+  profit: "Lợi nhuận",
+  compete: "Cạnh tranh",
+  concentrate: "Tích tụ, tập trung",
+  integrate: "Hội nhập quốc tế",
+  mekong: "Vận dụng ĐBSCL",
+};
+
 export const events = [
   {
     id: "calm",
@@ -123,6 +127,7 @@ export const events = [
     quizzes: [
       {
         q: "Tích lũy tư bản là gì?",
+        tag: TAGS.accum,
         options: [
           "Dùng toàn bộ giá trị thặng dư cho tiêu dùng cá nhân của nhà tư bản",
           "Chuyển hóa một phần giá trị thặng dư thành tư bản phụ thêm để mở rộng sản xuất",
@@ -133,6 +138,8 @@ export const events = [
       },
       {
         q: "Nguồn gốc duy nhất của tư bản tích lũy là gì?",
+        tag: TAGS.accum,
+        fit: "human",
         options: [
           "Vốn vay từ ngân hàng",
           "Viện trợ từ bên ngoài",
@@ -143,6 +150,8 @@ export const events = [
       },
       {
         q: "Tư bản bất biến (c) là bộ phận tư bản như thế nào?",
+        tag: TAGS.surplus,
+        fit: "technology",
         options: [
           "Tồn tại dưới hình thức tư liệu sản xuất, giá trị được bảo tồn và chuyển dần vào sản phẩm",
           "Dùng để mua sức lao động và tự tăng giá trị trong sản xuất",
@@ -153,6 +162,8 @@ export const events = [
       },
       {
         q: "Tư bản khả biến (v) dùng để làm gì và vì sao quan trọng?",
+        tag: TAGS.surplus,
+        fit: "human",
         options: [
           "Mua máy móc, giá trị tăng lên theo thời gian",
           "Mua sức lao động; lao động tạo ra giá trị mới lớn hơn giá trị sức lao động, tức giá trị thặng dư",
@@ -160,6 +171,17 @@ export const events = [
         ],
         answer: 1,
         explain: "Chỉ lao động mới tạo ra giá trị mới, trong đó có phần giá trị thặng dư là nguồn của tích lũy. Vì vậy đầu tư nhân lực vừa là chi phí vừa là nguồn tăng năng suất.",
+      },
+      {
+        q: "Vì sao giá trị thặng dư có thể chuyển hóa thành tư bản phụ thêm?",
+        tag: TAGS.accum,
+        options: [
+          "Vì giá trị thặng dư do lao động tạo ra đã mang sẵn các yếu tố vật chất của tư bản mới",
+          "Vì nhà nước luôn cấp thêm vốn cho doanh nghiệp",
+          "Vì giá trị thặng dư chỉ tồn tại dưới dạng tiền gửi ngân hàng",
+        ],
+        answer: 0,
+        explain: "Giá trị thặng dư là sản phẩm do lao động tạo ra, vốn đã mang sẵn hình thái vật chất (tư liệu sản xuất, vật phẩm tiêu dùng cho người lao động) để trở thành tư bản mới. Vì vậy lợi nhuận mỗi vòng của doanh nghiệp là nguồn trực tiếp để tái đầu tư, không phải chờ vốn từ bên ngoài.",
       }
     ],
     apply: () => ({ mult: 1, flat: 0, note: "Thị trường ổn định, không có tác động." }),
@@ -172,6 +194,8 @@ export const events = [
     quizzes: [
       {
         q: "Hội nhập kinh tế quốc tế của một quốc gia dựa trên điều gì?",
+        tag: TAGS.integrate,
+        fit: "market",
         options: [
           "Chỉ cần mở cửa thị trường, không cần tuân thủ quy định chung",
           "Chia sẻ lợi ích đồng thời tuân thủ các chuẩn mực quốc tế chung",
@@ -182,6 +206,8 @@ export const events = [
       },
       {
         q: "Hội nhập giúp doanh nghiệp trong nước điều gì?",
+        tag: TAGS.integrate,
+        fit: "market",
         options: [
           "Tiếp cận thị trường quốc tế, nguồn tín dụng, đối tác để đổi mới công nghệ và quản trị",
           "Không còn phải cạnh tranh với doanh nghiệp nước ngoài",
@@ -192,6 +218,8 @@ export const events = [
       },
       {
         q: "Hiệp định thương mại tự do (FTA) thường tạo ra lợi ích trực tiếp nào cho hàng xuất khẩu?",
+        tag: TAGS.integrate,
+        fit: "market",
         options: [
           "Tự động bảo đảm hàng luôn bán được",
           "Miễn mọi yêu cầu về chất lượng",
@@ -202,6 +230,8 @@ export const events = [
       },
       {
         q: "Doanh nghiệp muốn giữ khách hàng lâu dài ở thị trường khó tính cần ưu tiên điều gì?",
+        tag: TAGS.mekong,
+        fit: "market",
         options: [
           "Chất lượng ổn định và uy tín giao hàng",
           "Thường xuyên thay đổi quy cách sản phẩm",
@@ -209,6 +239,18 @@ export const events = [
         ],
         answer: 0,
         explain: "Khách hàng ở thị trường có tiêu chuẩn cao chọn đối tác theo chất lượng ổn định và độ tin cậy. Đó là lý do công nghệ và quy trình luôn phải được duy trì.",
+      },
+      {
+        q: "Để hàng xuất khẩu được hưởng thuế quan ưu đãi theo một FTA như EVFTA, điều kiện cơ bản nào cần đáp ứng?",
+        tag: TAGS.integrate,
+        fit: "market",
+        options: [
+          "Hàng hóa chỉ cần có giá thấp hơn đối thủ",
+          "Hàng hóa phải đáp ứng quy tắc xuất xứ và các tiêu chuẩn kỹ thuật, vệ sinh, an toàn của thị trường nhập khẩu",
+          "Doanh nghiệp phải có vốn nhà nước",
+        ],
+        answer: 1,
+        explain: "Ưu đãi thuế quan chỉ dành cho hàng hóa chứng minh được xuất xứ theo quy tắc của hiệp định và đạt tiêu chuẩn của nước nhập khẩu. Với doanh nghiệp nhỏ, đó là lý do truy xuất nguồn gốc, hồ sơ chứng nhận và quản lý chất lượng là điều kiện cần có, không chỉ là lựa chọn.",
       }
     ],
     apply: (s) =>
@@ -224,6 +266,8 @@ export const events = [
     quizzes: [
       {
         q: "Mặt trái của hội nhập đối với doanh nghiệp trong nước là gì?",
+        tag: TAGS.integrate,
+        fit: "market",
         options: [
           "Không có mặt trái nào",
           "Cạnh tranh gay gắt hơn, nhiều doanh nghiệp khó khăn, thậm chí phá sản",
@@ -234,6 +278,8 @@ export const events = [
       },
       {
         q: "Biện pháp cạnh tranh trong nội bộ ngành là gì?",
+        tag: TAGS.compete,
+        fit: "technology",
         options: [
           "Giảm chất lượng để hạ giá",
           "Cải tiến kỹ thuật, đổi mới công nghệ, tăng năng suất để hạ giá trị cá biệt thấp hơn giá trị xã hội",
@@ -244,6 +290,8 @@ export const events = [
       },
       {
         q: "Cạnh tranh có tác động tích cực nào đối với nền kinh tế thị trường?",
+        tag: TAGS.compete,
+        fit: "market",
         options: [
           "Làm mọi doanh nghiệp có lợi nhuận bằng nhau",
           "Thúc đẩy đổi mới, nâng năng suất và phát triển lực lượng sản xuất",
@@ -254,6 +302,8 @@ export const events = [
       },
       {
         q: "Mặt tiêu cực của cạnh tranh là gì?",
+        tag: TAGS.compete,
+        fit: "market",
         options: [
           "Làm giá hàng hóa luôn tăng",
           "Làm doanh nghiệp không cần đổi mới",
@@ -261,6 +311,18 @@ export const events = [
         ],
         answer: 2,
         explain: "Cạnh tranh có thể kéo theo thủ đoạn không lành mạnh, lãng phí hoặc tổn hại môi trường nếu thiếu quản lý. Vì vậy cần pháp luật và chuẩn mực chung khi hội nhập.",
+      },
+      {
+        q: "Khi hàng giá rẻ từ các nước trong khu vực vào thị trường nội địa nhiều hơn, hướng đi bền vững hơn cho doanh nghiệp nhỏ là gì?",
+        tag: TAGS.compete,
+        fit: "market",
+        options: [
+          "Bán thấp hơn giá thành để giữ khách",
+          "Nâng năng suất, chất lượng và tạo khác biệt sản phẩm để không chỉ cạnh tranh bằng giá rẻ",
+          "Ngừng sản xuất để tránh cạnh tranh",
+        ],
+        answer: 1,
+        explain: "Bán lỗ để giữ khách làm cạn vốn tái đầu tư nên không bền. Hướng bền vững là cải tiến kỹ thuật, nâng năng suất để giá trị cá biệt thấp hơn giá trị xã hội, đồng thời dựa vào chất lượng và thương hiệu riêng thay vì chỉ chạy đua về giá.",
       }
     ],
     apply: (s) =>
@@ -276,6 +338,7 @@ export const events = [
     quizzes: [
       {
         q: "Điều gì khiến năng lực cạnh tranh của doanh nghiệp Việt Nam còn thấp?",
+        tag: TAGS.mekong,
         options: [
           "Quá nhiều vốn đầu tư",
           "Nền tảng công nghệ yếu, lao động chất lượng thấp, quy mô đầu tư nhỏ",
@@ -286,6 +349,7 @@ export const events = [
       },
       {
         q: "Với khối lượng giá trị thặng dư nhất định, quy mô tích lũy phụ thuộc vào điều gì?",
+        tag: TAGS.accum,
         options: [
           "Tỷ lệ phân chia giữa tích lũy và tiêu dùng",
           "Địa điểm đặt trụ sở",
@@ -296,6 +360,7 @@ export const events = [
       },
       {
         q: "Vì sao doanh nghiệp nên giữ một phần vốn dự phòng?",
+        tag: TAGS.mekong,
         options: [
           "Vì tiền mặt luôn sinh lời cao hơn máy móc",
           "Để ứng phó biến động bất ngờ mà không làm gián đoạn sản xuất",
@@ -303,6 +368,29 @@ export const events = [
         ],
         answer: 1,
         explain: "Thiên tai và giá cả biến động có thể xảy ra bất ngờ. Quỹ dự phòng giúp vượt qua giai đoạn khó mà không phải cắt giảm sản xuất, nhưng giữ quá nhiều thì mất cơ hội tái đầu tư.",
+      },
+      {
+        q: "Hạn mặn làm giá nguyên liệu tăng, tức chi phí tư bản bất biến (c) tăng. Nếu các yếu tố khác không đổi, tỷ suất lợi nhuận p' thay đổi thế nào?",
+        tag: TAGS.profit,
+        fit: "technology",
+        options: [
+          "Tăng lên vì chi phí lớn hơn thì lợi nhuận lớn hơn",
+          "Giảm xuống vì p' = p / (c + v) nên mẫu số tăng",
+          "Không đổi vì p' chỉ phụ thuộc vào tư bản khả biến",
+        ],
+        answer: 1,
+        explain: "Tỷ suất lợi nhuận p' = p / (c + v) × 100%. Khi c tăng mà giá trị thặng dư không tăng theo thì p' giảm. Ngược lại, tiết kiệm tư bản bất biến làm p' tăng, nên doanh nghiệp cần chủ động nguồn nguyên liệu và hạn chế hao phí.",
+      },
+      {
+        q: "Vì sao doanh nghiệp chế biến nông sản ở ĐBSCL nên liên kết ổn định với vùng nguyên liệu và hộ sản xuất?",
+        tag: TAGS.mekong,
+        options: [
+          "Để ổn định nguồn đầu vào, chia sẻ rủi ro thiên tai và dễ truy xuất nguồn gốc, kiểm soát chất lượng",
+          "Để không cần đầu tư công nghệ chế biến",
+          "Để tăng giá thu mua bất kể thị trường",
+        ],
+        answer: 0,
+        explain: "Liên kết vùng nguyên liệu giúp ổn định tư bản bất biến đầu vào, cùng chia sẻ rủi ro hạn mặn và tạo dữ liệu truy xuất nguồn gốc mà các thị trường như EU yêu cầu. Đây là cách tăng năng lực tái sản xuất mà không chỉ dựa vào vốn riêng.",
       }
     ],
     apply: (s) =>
@@ -318,6 +406,7 @@ export const events = [
     quizzes: [
       {
         q: "Khi thị trường thuận lợi và lợi nhuận tăng, doanh nghiệp muốn mở rộng sản xuất nên làm gì?",
+        tag: TAGS.accum,
         options: [
           "Dùng hết cho tiêu dùng cá nhân",
           "Chuyển một phần thành vốn phụ thêm: thuê thêm lao động, mở rộng nhà xưởng, mua máy móc, nguyên liệu",
@@ -328,6 +417,7 @@ export const events = [
       },
       {
         q: "Nếu thị trường thuận lợi thì đại lượng tư bản ứng trước ảnh hưởng thế nào đến quy mô tích lũy?",
+        tag: TAGS.accum,
         options: [
           "Tư bản ứng trước càng lớn thì là tiền đề cho quy mô tích lũy càng lớn",
           "Tư bản ứng trước không liên quan đến tích lũy",
@@ -338,6 +428,8 @@ export const events = [
       },
       {
         q: "Giá cả thị trường lên xuống xoay quanh giá trị hàng hóa là biểu hiện của quy luật nào?",
+        tag: TAGS.value,
+        fit: "market",
         options: [
           "Quy luật lưu thông tiền tệ",
           "Quy luật độc quyền",
@@ -348,6 +440,8 @@ export const events = [
       },
       {
         q: "Khi cung nhỏ hơn cầu, giá cả thị trường thường như thế nào?",
+        tag: TAGS.value,
+        fit: "market",
         options: [
           "Tăng lên",
           "Giảm xuống",
@@ -355,6 +449,17 @@ export const events = [
         ],
         answer: 0,
         explain: "Cung nhỏ hơn cầu thì giá thường tăng trên giá trị, tạo lợi nhuận cao hơn. Đó là tín hiệu mở rộng sản xuất, nhưng cần xem đó là biến động ngắn hạn hay xu hướng bền vững.",
+      },
+      {
+        q: "Khi giá nông sản tăng, doanh nghiệp rút ngắn thời gian từ thu mua, chế biến đến bán hàng (tăng tốc độ chu chuyển của tư bản). Điều này tác động thế nào đến tỷ suất lợi nhuận?",
+        tag: TAGS.profit,
+        options: [
+          "Làm tỷ suất lợi nhuận tăng, vì cùng một lượng tư bản quay được nhiều vòng hơn trong năm",
+          "Làm tỷ suất lợi nhuận giảm vì phải trả thêm chi phí",
+          "Không ảnh hưởng vì tỷ suất lợi nhuận luôn cố định",
+        ],
+        answer: 0,
+        explain: "Tốc độ chu chuyển của tư bản đồng biến với tỷ suất lợi nhuận: vòng quay càng nhanh thì cùng một lượng tư bản tạo ra nhiều giá trị thặng dư hơn trong năm. Vì vậy khi giá tăng, nhanh tay đưa hàng ra thị trường có lợi hơn là để tồn kho.",
       }
     ],
     apply: () => ({ mult: 1.2, flat: 0, note: "Giá bán tăng, lợi nhuận +20%." }),
@@ -367,6 +472,7 @@ export const events = [
     quizzes: [
       {
         q: "Tái sản xuất giản đơn và tái sản xuất mở rộng khác nhau thế nào?",
+        tag: TAGS.accum,
         options: [
           "Giản đơn: lặp lại với quy mô cũ, toàn bộ giá trị thặng dư dùng tiêu dùng cá nhân. Mở rộng: một phần được tích lũy",
           "Cả hai đều mở rộng quy mô như nhau",
@@ -377,6 +483,8 @@ export const events = [
       },
       {
         q: "Năng suất lao động tăng ảnh hưởng thế nào đến quy mô tích lũy?",
+        tag: TAGS.accum,
+        fit: "technology",
         options: [
           "Làm giảm giá trị sức lao động, nhà tư bản thu nhiều giá trị thặng dư hơn nên có điều kiện tăng tích lũy",
           "Không ảnh hưởng gì",
@@ -387,6 +495,8 @@ export const events = [
       },
       {
         q: "Tỷ suất giá trị thặng dư phản ánh điều gì?",
+        tag: TAGS.surplus,
+        fit: "human",
         options: [
           "Tỷ lệ giữa vốn vay và vốn tự có",
           "Tỷ lệ chiết khấu của máy móc",
@@ -394,6 +504,29 @@ export const events = [
         ],
         answer: 2,
         explain: "Tỷ suất giá trị thặng dư m' = m/v cho biết mức độ khai thác sức lao động. Cách bền vững để tăng nó là nâng năng suất nhờ kỹ năng và công nghệ, không phải ép giảm tiền công.",
+      },
+      {
+        q: "Hệ quả nào sau đây KHÔNG phải là hệ quả của tích lũy tư bản?",
+        tag: TAGS.accum,
+        options: [
+          "Cấu tạo hữu cơ của tư bản (c/v) tăng lên",
+          "Tích tụ và tập trung tư bản tăng",
+          "Chênh lệch thu nhập giữa nhà tư bản và người lao động được xóa bỏ",
+        ],
+        answer: 2,
+        explain: "Theo lý luận của Mác, tích lũy làm tăng cấu tạo hữu cơ, tăng tích tụ và tập trung tư bản, đồng thời làm tăng chênh lệch thu nhập giữa nhà tư bản và người lao động chứ không xóa bỏ nó. Vì chênh lệch này dễ gây bất ổn, doanh nghiệp cần chia sẻ lợi ích hợp lý để giữ chân lao động tay nghề.",
+      },
+      {
+        q: "Doanh nghiệp nhỏ khó giữ lao động tay nghề vì nơi khác trả cao hơn. Giải pháp nào bền vững nhất?",
+        tag: TAGS.mekong,
+        fit: "human",
+        options: [
+          "Tăng giờ làm nhưng giữ nguyên tiền công",
+          "Đào tạo nâng tay nghề, gắn thu nhập với năng suất và cải thiện điều kiện làm việc",
+          "Liên tục thay bằng lao động giá rẻ chưa qua đào tạo",
+        ],
+        answer: 1,
+        explain: "Tay nghề cao làm giá trị cá biệt khác nhau giữa các doanh nghiệp, nên nhân lực chất lượng là lợi thế cạnh tranh. Cách bền vững để tăng giá trị thặng dư là nâng năng suất, không phải kéo dài giờ làm hay ép giảm tiền công.",
       }
     ],
     apply: (s) =>
@@ -409,6 +542,8 @@ export const events = [
     quizzes: [
       {
         q: "Doanh nghiệp có giá trị cá biệt của hàng hóa thấp hơn giá trị xã hội sẽ ở vị thế nào?",
+        tag: TAGS.compete,
+        fit: "technology",
         options: [
           "Thu được lợi nhuận cao hơn mức bình thường",
           "Luôn bị thua lỗ",
@@ -419,6 +554,7 @@ export const events = [
       },
       {
         q: "Tích tụ tư bản là gì?",
+        tag: TAGS.concentrate,
         options: [
           "Hợp nhất nhiều doanh nghiệp thành một",
           "Tăng quy mô tư bản cá biệt bằng cách tư bản hóa giá trị thặng dư",
@@ -429,6 +565,7 @@ export const events = [
       },
       {
         q: "Giá trị xã hội của hàng hóa do yếu tố nào quyết định?",
+        tag: TAGS.value,
         options: [
           "Thời gian lao động xã hội cần thiết",
           "Chi phí riêng của từng doanh nghiệp",
@@ -439,6 +576,8 @@ export const events = [
       },
       {
         q: "Cạnh tranh giữa các ngành dẫn đến điều gì?",
+        tag: TAGS.compete,
+        fit: "market",
         options: [
           "Mọi ngành đều ngừng sản xuất",
           "Vốn dịch chuyển từ ngành lãi thấp sang ngành lãi cao, hình thành tỷ suất lợi nhuận bình quân",
@@ -446,6 +585,18 @@ export const events = [
         ],
         answer: 1,
         explain: "Tư bản có xu hướng chảy vào ngành có lợi nhuận cao hơn. Quá trình này làm tỷ suất lợi nhuận giữa các ngành dần tiến tới mức bình quân.",
+      },
+      {
+        q: "Máy móc không tạo ra giá trị mới, vậy vì sao sử dụng hiệu quả máy móc vẫn làm tăng khả năng tích lũy của doanh nghiệp?",
+        tag: TAGS.accum,
+        fit: "technology",
+        options: [
+          "Vì máy móc tự sinh ra giá trị thặng dư",
+          "Vì dùng hiệu quả giúp tăng năng suất, hạ chi phí trên mỗi sản phẩm nên phần giá trị thặng dư dành cho tích lũy có thể lớn hơn",
+          "Vì máy móc càng cũ thì càng sinh lời",
+        ],
+        answer: 1,
+        explain: "Hiệu quả sử dụng máy móc là một trong các nhân tố quyết định quy mô tích lũy. Máy móc chỉ chuyển giá trị của nó vào sản phẩm, nhưng bảo trì tốt và khai thác đủ công suất giúp tăng năng suất và hạ chi phí đơn vị. Trong game, chỉ số công nghệ cũng hao mòn nếu bị bỏ mặc.",
       }
     ],
     apply: (s) =>
@@ -461,6 +612,8 @@ export const events = [
     quizzes: [
       {
         q: "Muốn tham gia sâu vào chuỗi giá trị khu vực và toàn cầu, doanh nghiệp cần gì?",
+        tag: TAGS.integrate,
+        fit: "market",
         options: [
           "Chỉ cần bán giá thật rẻ",
           "Đáp ứng yêu cầu về chất lượng, tiêu chuẩn và năng lực quản trị",
@@ -471,6 +624,8 @@ export const events = [
       },
       {
         q: "Vì sao doanh nghiệp nên đa dạng hóa thị trường và đối tác?",
+        tag: TAGS.integrate,
+        fit: "market",
         options: [
           "Để tránh phụ thuộc vào một thị trường hay một đối tác",
           "Để giảm chất lượng sản phẩm",
@@ -481,6 +636,8 @@ export const events = [
       },
       {
         q: "Rủi ro lớn khi doanh nghiệp nhỏ phụ thuộc vào một đối tác lớn trong chuỗi cung ứng là gì?",
+        tag: TAGS.integrate,
+        fit: "market",
         options: [
           "Không còn phải cạnh tranh",
           "Luôn được bảo đảm lợi nhuận cao",
@@ -488,6 +645,30 @@ export const events = [
         ],
         answer: 2,
         explain: "Phụ thuộc một đối tác làm doanh nghiệp yếu thế khi đàm phán và dễ tổn thương khi đơn hàng thay đổi. Vì vậy cần đa dạng hóa khách hàng và nâng năng lực riêng.",
+      },
+      {
+        q: "Nói hội nhập kinh tế quốc tế \"không phải bằng mọi giá\" nghĩa là gì?",
+        tag: TAGS.integrate,
+        fit: "market",
+        options: [
+          "Chuẩn bị đầy đủ điều kiện, cân nhắc lộ trình và cách thức phù hợp rồi mới hội nhập sâu",
+          "Chỉ hội nhập khi doanh nghiệp trong nước không còn khó khăn",
+          "Hội nhập càng nhanh càng tốt, bất kể năng lực chuẩn bị",
+        ],
+        answer: 0,
+        explain: "Hội nhập cần được cân nhắc về lộ trình và cách thức tối ưu, đi kèm chuẩn bị đầy đủ điều kiện. Với doanh nghiệp, nhận đơn hàng lớn khi chưa đạt chuẩn về công nghệ và nhân lực có thể gây rủi ro thay vì lợi ích.",
+      },
+      {
+        q: "Muốn nâng giá trị gia tăng khi vào chuỗi cung ứng xuất khẩu nông, thủy sản, doanh nghiệp nhỏ nên ưu tiên hướng nào?",
+        tag: TAGS.mekong,
+        fit: "technology",
+        options: [
+          "Chỉ bán thêm nguyên liệu thô với giá thấp",
+          "Đầu tư chế biến sâu, bao bì, truy xuất nguồn gốc và xây dựng thương hiệu",
+          "Hạn chế kiểm tra chất lượng để giảm giá",
+        ],
+        answer: 1,
+        explain: "Bán nguyên liệu thô có giá trị gia tăng thấp và dễ bị ép giá. Chế biến sâu, đạt tiêu chuẩn và có thương hiệu giúp doanh nghiệp giữ lại phần lớn hơn của giá trị thặng dư trong chuỗi, từ đó có thêm vốn để tái đầu tư.",
       }
     ],
     apply: (s) =>
@@ -503,6 +684,7 @@ export const events = [
     quizzes: [
       {
         q: "Tập trung tư bản là gì?",
+        tag: TAGS.concentrate,
         options: [
           "Dùng giá trị thặng dư để mở rộng nhà xưởng của chính mình",
           "Chia nhỏ doanh nghiệp để giảm rủi ro",
@@ -513,6 +695,7 @@ export const events = [
       },
       {
         q: "Điểm khác nhau chính giữa tích tụ và tập trung tư bản là gì?",
+        tag: TAGS.concentrate,
         options: [
           "Hai khái niệm hoàn toàn giống nhau",
           "Tích tụ là hợp nhất doanh nghiệp, tập trung là tích lũy",
@@ -523,6 +706,8 @@ export const events = [
       },
       {
         q: "Khi tích lũy tư bản diễn ra, cấu tạo hữu cơ của tư bản (c/v) có xu hướng thay đổi thế nào?",
+        tag: TAGS.accum,
+        fit: "technology",
         options: [
           "Giảm xuống",
           "Tăng lên",
@@ -533,6 +718,7 @@ export const events = [
       },
       {
         q: "Công ty cổ phần thúc đẩy tập trung tư bản bằng cách nào?",
+        tag: TAGS.concentrate,
         options: [
           "Chia nhỏ vốn thành nhiều doanh nghiệp độc lập",
           "Huy động vốn của nhiều người để hình thành tư bản lớn hơn",
@@ -540,6 +726,18 @@ export const events = [
         ],
         answer: 1,
         explain: "Phát hành cổ phiếu huy động vốn nhàn rỗi từ nhiều nhà đầu tư, giúp hình thành tư bản cá biệt lớn nhanh hơn so với tự tích lũy.",
+      },
+      {
+        q: "Hợp tác xã và liên kết chuỗi giúp doanh nghiệp nhỏ tăng sức cạnh tranh bằng cách nào?",
+        tag: TAGS.mekong,
+        fit: "market",
+        options: [
+          "Gộp nguồn lực để mua đầu vào, đầu tư chung và đàm phán với quy mô lớn hơn",
+          "Xóa bỏ hoàn toàn cạnh tranh trên thị trường",
+          "Buộc mọi thành viên sáp nhập thành một pháp nhân",
+        ],
+        answer: 0,
+        explain: "Liên kết là cách doanh nghiệp nhỏ tập hợp nguồn lực để có quy mô, gần với tinh thần tập trung tư bản nhưng vẫn giữ pháp nhân riêng. Nhờ vậy họ giảm chi phí đầu vào, chia sẻ công nghệ và có tiếng nói hơn khi đàm phán với đối tác lớn.",
       }
     ],
     apply: (s) => {
@@ -550,6 +748,252 @@ export const events = [
     },
   },
 ];
+
+// Ngân hàng câu hỏi dùng chung. Mỗi câu có nhãn chủ đề (tag) và hướng đầu tư phù hợp (fit, có thể bỏ trống).
+// Khi chọn đầu tư, game ưu tiên rút câu cùng hướng chưa gặp; chuyển đổi toàn diện rút mỗi hướng một câu.
+export const MORE_QUIZZES = [
+  {
+    q: "Giá trị của máy móc được chuyển vào sản phẩm theo cách nào?",
+    tag: TAGS.accum,
+    fit: "technology",
+    options: [
+    "Chuyển dần từng phần qua nhiều chu kỳ sản xuất (khấu hao)",
+    "Chuyển hết vào lô sản phẩm đầu tiên",
+    "Không chuyển vì máy móc không có giá trị",
+    ],
+    answer: 0,
+    explain: "Máy móc tham gia nhiều chu kỳ sản xuất và hao mòn dần, nên giá trị của nó chuyển dần vào sản phẩm qua khấu hao. Máy dùng được lâu và bảo trì tốt làm chi phí trên mỗi sản phẩm thấp hơn.",
+  },
+  {
+    q: "Năng suất lao động xã hội tăng làm rút ngắn thời gian lao động tất yếu, trong khi độ dài ngày lao động không đổi. Nhà tư bản thu được loại giá trị thặng dư nào?",
+    tag: TAGS.surplus,
+    fit: "technology",
+    options: [
+    "Giá trị thặng dư tuyệt đối",
+    "Giá trị thặng dư tương đối",
+    "Giá trị thặng dư siêu ngạch",
+    ],
+    answer: 1,
+    explain: "Rút ngắn thời gian lao động tất yếu để kéo dài phần thời gian lao động thặng dư, khi ngày lao động giữ nguyên, tạo ra giá trị thặng dư tương đối. Đây là hướng tăng giá trị thặng dư bền vững hơn kéo dài giờ làm, và gắn trực tiếp với đầu tư công nghệ.",
+  },
+  {
+    q: "Giá trị thặng dư siêu ngạch có đặc điểm nào?",
+    tag: TAGS.surplus,
+    fit: "technology",
+    options: [
+    "Tạm thời với từng doanh nghiệp vì đối thủ sẽ đuổi kịp, nhưng luôn xuất hiện trong xã hội",
+    "Vĩnh viễn với doanh nghiệp đi đầu, đối thủ không thể đuổi kịp",
+    "Chỉ có được nhờ kéo dài ngày lao động",
+    ],
+    answer: 0,
+    explain: "Doanh nghiệp tăng năng suất để giá trị cá biệt thấp hơn giá trị xã hội sẽ thu thêm phần siêu ngạch. Khi đối thủ cải tiến theo, lợi thế mất đi, nên với mỗi doanh nghiệp nó là tạm thời. Đó là động lực khiến doanh nghiệp liên tục đổi mới công nghệ.",
+  },
+  {
+    q: "Vì sao hệ thống truy xuất nguồn gốc là khoản đầu tư công nghệ có ý nghĩa với doanh nghiệp nông sản muốn xuất khẩu?",
+    tag: TAGS.mekong,
+    fit: "technology",
+    options: [
+    "Giúp đáp ứng yêu cầu minh bạch của thị trường khó tính và tạo niềm tin để giữ khách hàng",
+    "Chỉ có tác dụng giảm tiền thuế",
+    "Giúp sản phẩm tự tăng giá trị dù chất lượng không đổi",
+    ],
+    answer: 0,
+    explain: "Nhiều thị trường nhập khẩu yêu cầu biết rõ nguồn gốc và quy trình sản xuất. Truy xuất nguồn gốc giúp doanh nghiệp đáp ứng điều kiện vào thị trường và xây dựng uy tín lâu dài, nhưng không thay thế được chất lượng sản phẩm.",
+  },
+  {
+    q: "Vì sao đầu tư công nghệ mới cần đi kèm đào tạo người vận hành?",
+    tag: TAGS.accum,
+    fit: "technology",
+    options: [
+    "Vì hiệu quả sử dụng máy móc phụ thuộc vào người dùng, thiếu kỹ năng thì máy mới không phát huy được năng suất",
+    "Vì máy móc mới tự vận hành nên người lao động không còn quan trọng",
+    "Vì đào tạo là cách duy nhất để giảm giá máy",
+    ],
+    answer: 0,
+    explain: "Máy móc chỉ chuyển giá trị của nó vào sản phẩm, còn năng suất thực tế do người sử dụng quyết định. Hiệu quả sử dụng máy móc là một nhân tố của quy mô tích lũy, nên công nghệ và nhân lực nên đi cùng nhau.",
+  },
+  {
+    q: "Doanh nghiệp nhỏ vốn hạn chế nên chọn công nghệ như thế nào?",
+    tag: TAGS.mekong,
+    fit: "technology",
+    options: [
+    "Ưu tiên công nghệ phù hợp quy mô và đúng điểm nghẽn, như sơ chế hoặc bảo quản, để tăng năng suất và giảm hao phí",
+    "Mua dây chuyền lớn nhất để gây ấn tượng",
+    "Không đầu tư vì doanh nghiệp nhỏ không cần công nghệ",
+    ],
+    answer: 0,
+    explain: "Tư bản ứng trước của doanh nghiệp nhỏ có hạn nên cần đầu tư đúng chỗ. Công nghệ phù hợp giúp tăng năng suất và giảm hao phí mà không làm vốn bị đóng băng, nhờ đó tái đầu tư được lâu dài.",
+  },
+  {
+    q: "Doanh nghiệp đầu tư bảo quản để giảm hao hụt nông sản sau thu hoạch. Theo lý luận về tỷ suất lợi nhuận, điều này có ý nghĩa gì?",
+    tag: TAGS.profit,
+    fit: "technology",
+    options: [
+    "Tiết kiệm tư bản bất biến nên làm tỷ suất lợi nhuận tăng",
+    "Làm tỷ suất lợi nhuận giảm vì phải chi thêm",
+    "Không liên quan đến tỷ suất lợi nhuận",
+    ],
+    answer: 0,
+    explain: "Tiết kiệm tư bản bất biến (c) làm mẫu số của p' = p / (c + v) giảm, nên tỷ suất lợi nhuận tăng. Giảm hao hụt là một cách tiết kiệm c: cùng một lượng nguyên liệu cho ra nhiều sản phẩm bán được hơn.",
+  },
+  {
+    q: "Vì sao sức lao động là hàng hóa đặc biệt?",
+    tag: TAGS.surplus,
+    fit: "human",
+    options: [
+    "Vì khi sử dụng, nó tạo ra giá trị mới lớn hơn giá trị của chính nó",
+    "Vì không bao giờ được mua bán trên thị trường",
+    "Vì giá của nó luôn bằng giá của máy móc",
+    ],
+    answer: 0,
+    explain: "Giá trị sử dụng của sức lao động là tạo ra giá trị, và phần vượt quá giá trị sức lao động chính là giá trị thặng dư. Vì vậy nhân lực là nguồn gốc của tích lũy, không chỉ là một khoản chi phí.",
+  },
+  {
+    q: "Theo lý luận của Mác, tiền công là gì?",
+    tag: TAGS.surplus,
+    fit: "human",
+    options: [
+    "Giá cả của hàng hóa sức lao động",
+    "Toàn bộ giá trị mà người lao động tạo ra",
+    "Phần giá trị thặng dư chia lại cho người lao động",
+    ],
+    answer: 0,
+    explain: "Tiền công là biểu hiện bằng tiền của giá trị sức lao động, tức giá cả của hàng hóa sức lao động, chứ không phải giá cả của toàn bộ lao động. Phần giá trị mới vượt quá tiền công là giá trị thặng dư.",
+  },
+  {
+    q: "Vì sao tăng giá trị thặng dư bằng cách kéo dài ngày lao động không bền vững?",
+    tag: TAGS.surplus,
+    fit: "human",
+    options: [
+    "Vì bị giới hạn bởi sức khỏe người lao động và quy định pháp luật, đồng thời dễ làm mất lao động giỏi",
+    "Vì làm giá trị hàng hóa giảm xuống",
+    "Vì cách này không tạo ra giá trị thặng dư",
+    ],
+    answer: 0,
+    explain: "Kéo dài ngày lao động tạo ra giá trị thặng dư tuyệt đối nhưng chạm giới hạn thể chất, tinh thần và quy định pháp luật. Hướng bền vững hơn là nâng năng suất để tăng giá trị thặng dư tương đối.",
+  },
+  {
+    q: "Trong các nhân tố quyết định quy mô tích lũy, đào tạo tay nghề cho người lao động tác động trước hết đến nhân tố nào?",
+    tag: TAGS.accum,
+    fit: "human",
+    options: [
+    "Trình độ khai thác sức lao động và năng suất lao động",
+    "Tỷ lệ phân chia giữa quỹ tích lũy và quỹ tiêu dùng",
+    "Không tác động đến nhân tố nào vì lao động không liên quan đến tích lũy",
+    ],
+    answer: 0,
+    explain: "Bốn nhân tố gồm trình độ khai thác sức lao động, năng suất lao động xã hội, hiệu quả sử dụng máy móc và quy mô tư bản ứng trước. Đào tạo nâng kỹ năng nên chủ yếu tác động đến hai nhân tố đầu, từ đó tăng giá trị thặng dư có thể dành cho tích lũy.",
+  },
+  {
+    q: "Tiền công tăng nhưng năng suất lao động không tăng, tức tổng giá trị mới do lao động tạo ra không đổi. Tỷ suất lợi nhuận thay đổi thế nào?",
+    tag: TAGS.profit,
+    fit: "human",
+    options: [
+    "Giảm, vì phần giá trị mới dành cho tiền công tăng nên giá trị thặng dư giảm",
+    "Tăng, vì chi phí nhân công lớn hơn",
+    "Không đổi vì lợi nhuận độc lập với tiền công",
+    ],
+    answer: 0,
+    explain: "Tổng giá trị mới do lao động tạo ra gồm v và m. Khi v tăng mà tổng không đổi thì m giảm và p' giảm theo. Vì vậy tăng thu nhập nên đi cùng nâng năng suất để doanh nghiệp và người lao động cùng có lợi.",
+  },
+  {
+    q: "Nếu doanh nghiệp chế biến nông sản phụ thuộc nhiều vào lao động thời vụ, giải pháp nào vừa nâng năng suất vừa giữ được người lao động?",
+    tag: TAGS.mekong,
+    fit: "human",
+    options: [
+    "Đào tạo kỹ năng đa dạng, ký hợp đồng ổn định hơn cho lao động nòng cốt và sắp xếp việc theo mùa vụ",
+    "Cắt giảm đào tạo để tiết kiệm chi phí",
+    "Giảm thu nhập khi hết mùa vụ để bù chi phí",
+    ],
+    answer: 0,
+    explain: "Lao động có kỹ năng và gắn bó lâu dài giúp năng suất ổn định, giảm chi phí tuyển và đào tạo lại. Đây là cách biến nhân lực thành lợi thế cạnh tranh thay vì chỉ coi là chi phí.",
+  },
+  {
+    q: "Theo quy luật giá trị, để bán hàng có lãi, hao phí lao động cá biệt của doanh nghiệp nên như thế nào so với hao phí lao động xã hội cần thiết?",
+    tag: TAGS.value,
+    fit: "market",
+    options: [
+    "Thấp hơn hoặc bằng hao phí lao động xã hội cần thiết",
+    "Luôn cao hơn hao phí lao động xã hội cần thiết",
+    "Không liên quan đến hao phí lao động xã hội",
+    ],
+    answer: 0,
+    explain: "Giá bán trên thị trường xoay quanh giá trị xã hội. Doanh nghiệp hạ được hao phí cá biệt xuống thấp hơn mức xã hội cần thiết sẽ có lãi cao hơn. Hội nhập càng sâu, áp lực nâng năng suất với doanh nghiệp nhỏ càng lớn.",
+  },
+  {
+    q: "Một loại nông sản được giá khiến nhiều hộ và doanh nghiệp cùng đổ vốn vào sản xuất. Điều gì thường xảy ra sau đó?",
+    tag: TAGS.compete,
+    fit: "market",
+    options: [
+    "Cung tăng nhanh, giá giảm và tỷ suất lợi nhuận có xu hướng về mức bình quân",
+    "Giá luôn tăng thêm vì nhiều người cùng làm",
+    "Cạnh tranh biến mất vì thị trường đã đủ lớn",
+    ],
+    answer: 0,
+    explain: "Cạnh tranh giữa các ngành khiến vốn chảy tới nơi có lợi nhuận cao. Khi cung vượt cầu, giá giảm và lợi nhuận quay về mức bình quân. Theo phong trào mà không tính đầu ra dễ dẫn đến được mùa mất giá.",
+  },
+  {
+    q: "EVFTA là hiệp định thương mại tự do giữa Việt Nam và đối tác nào, có hiệu lực từ năm nào?",
+    tag: TAGS.integrate,
+    fit: "market",
+    options: [
+    "Liên minh châu Âu (EU), từ năm 2020",
+    "Hoa Kỳ, từ năm 2016",
+    "Các nước ASEAN, từ năm 2015",
+    ],
+    answer: 0,
+    explain: "EVFTA là hiệp định thương mại tự do giữa Việt Nam và Liên minh châu Âu, có hiệu lực từ ngày 1/8/2020. Hiệp định cắt giảm thuế quan theo lộ trình nhưng đi kèm yêu cầu về xuất xứ, tiêu chuẩn kỹ thuật và phát triển bền vững.",
+  },
+  {
+    q: "RCEP gồm bao nhiêu nước thành viên và có hiệu lực với Việt Nam từ năm nào?",
+    tag: TAGS.integrate,
+    fit: "market",
+    options: [
+    "15 nước, từ năm 2022",
+    "11 nước, từ năm 2018",
+    "10 nước, từ năm 2015",
+    ],
+    answer: 0,
+    explain: "RCEP gồm 10 nước ASEAN cùng Trung Quốc, Nhật Bản, Hàn Quốc, Úc và New Zealand, có hiệu lực với Việt Nam từ ngày 1/1/2022. Thị trường rộng hơn, nhưng hàng hóa các nước thành viên cũng vào Việt Nam dễ hơn nên cạnh tranh trong nước tăng.",
+  },
+  {
+    q: "Theo lý luận của Mác, lợi nhuận thương nghiệp có nguồn gốc từ đâu?",
+    tag: TAGS.profit,
+    fit: "market",
+    options: [
+    "Từ phần giá trị thặng dư do nhà tư bản công nghiệp nhường lại cho nhà tư bản thương nghiệp",
+    "Từ việc thương nhân tự tạo ra giá trị mới trong khâu lưu thông",
+    "Từ chênh lệch tỷ giá hối đoái",
+    ],
+    answer: 0,
+    explain: "Lợi nhuận thương nghiệp là một phần giá trị thặng dư tạo ra trong sản xuất, nhà tư bản công nghiệp nhường lại để thương nhân lo khâu tiêu thụ. Khi chọn kênh phân phối, doanh nghiệp cần cân giữa chi phí nhường lại và lợi ích tiếp cận thị trường.",
+  },
+  {
+    q: "Vì sao thương hiệu và chỉ dẫn địa lý giúp nông sản của một vùng bán được giá tốt hơn?",
+    tag: TAGS.mekong,
+    fit: "market",
+    options: [
+    "Vì tạo sự khác biệt và niềm tin về chất lượng, nên khách hàng chấp nhận mức giá cao hơn",
+    "Vì làm chi phí sản xuất bằng không",
+    "Vì loại bỏ hoàn toàn cạnh tranh",
+    ],
+    answer: 0,
+    explain: "Thương hiệu và chỉ dẫn địa lý là cách cạnh tranh bằng giá trị sử dụng và uy tín, không chỉ bằng giá rẻ. Với nông sản vùng như ĐBSCL, điều này giúp giữ lại phần giá trị cao hơn trong chuỗi.",
+  },
+  {
+    q: "Doanh nghiệp vay vốn để mở rộng thị trường. Theo lý luận, lợi tức trả cho người cho vay là gì?",
+    tag: TAGS.profit,
+    fit: "market",
+    options: [
+    "Một phần lợi nhuận bình quân mà nhà tư bản đi vay phải trả để được tạm sử dụng tư bản tiền tệ",
+    "Khoản thưởng nhà nước dành cho người cho vay",
+    "Phần giá trị mới do người cho vay tự tạo ra",
+    ],
+    answer: 0,
+    explain: "Lợi tức là một phần lợi nhuận bình quân trả cho quyền tạm thời sử dụng vốn vay. Vay vốn mở rộng chỉ hợp lý khi tỷ suất lợi nhuận kỳ vọng cao hơn lãi suất phải trả.",
+  },
+];
+export const QUIZ_BANK = [...events.flatMap((e) => e.quizzes), ...MORE_QUIZZES];
 
 export function clamp(n) {
   return Math.min(100, Math.max(0, n));
@@ -593,9 +1037,10 @@ function drawChoice(deck) {
 }
 
 // Ưu tiên câu chưa gặp; xáo thứ tự đáp án để vị trí đúng không cố định.
-function pickQuiz(event, used) {
-  const fresh = event.quizzes.filter((q) => !used.includes(q.q));
-  const pool = fresh.length ? fresh : event.quizzes;
+function drawQuiz(fit, used) {
+  const unused = QUIZ_BANK.filter((q) => !used.includes(q.q));
+  const preferred = unused.filter((q) => q.fit === fit);
+  const pool = preferred.length ? preferred : unused.length ? unused : QUIZ_BANK;
   const base = pool[Math.floor(Math.random() * pool.length)];
   const order = shuffle(base.options.map((_, i) => i));
   return {
@@ -603,6 +1048,14 @@ function pickQuiz(event, used) {
     options: order.map((i) => base.options[i]),
     answer: order.indexOf(base.answer),
   };
+}
+
+// Danh sách câu hỏi cho một lần đầu tư (không trùng nhau, không trùng câu đã gặp nếu còn câu mới).
+function drawQuizzes(type, used) {
+  const fits = type === "overhaul" ? ["technology", "human", "market"] : [type];
+  const items = [];
+  fits.forEach((fit) => items.push(drawQuiz(fit, [...used, ...items.map((q) => q.q)])));
+  return items;
 }
 
 export function makeInitial() {
@@ -616,7 +1069,7 @@ export function makeInitial() {
     competition,
     event,
     deck,
-    quiz: { picked: null, item: pickQuiz(event, []) },
+    pending: null,
     choice: null,
     choiceDeck: [],
     choiceLog: [],
@@ -635,21 +1088,55 @@ export function makeInitial() {
   };
 }
 
-export function answerQuiz(state, i) {
-  if (state.finished || state.quiz.picked !== null) return state;
-  const ok = i === state.quiz.item.answer;
+// Bắt đầu một lần đầu tư: hiện câu hỏi (trừ tích lũy dự trữ thì đầu tư luôn).
+export function beginAction(state, type) {
+  if (state.finished || state.pending) return state;
+  if (state.choice && state.choice.picked === null) return state;
+  if (state.capital < costOf(type, state)) return state;
+  if (lockReason(type, state)) return state;
+  if (type === "reserve") return invest(state, type);
+  return { ...state, pending: { type, items: drawQuizzes(type, state.usedQuiz), idx: 0, picks: [] } };
+}
+
+// Quay lại khi chưa trả lời câu nào.
+export function cancelAction(state) {
+  const p = state.pending;
+  if (!p || p.picks.length > 0) return state;
+  return { ...state, pending: null };
+}
+
+export function answerPending(state, i) {
+  const p = state.pending;
+  if (!p || state.finished || p.picks.length > p.idx) return state;
+  const item = p.items[p.idx];
+  const ok = i === item.answer;
   return {
     ...state,
-    quiz: { ...state.quiz, picked: i },
+    pending: { ...p, picks: [...p.picks, i] },
     quizTotal: state.quizTotal + 1,
     quizCorrect: state.quizCorrect + (ok ? 1 : 0),
-    usedQuiz: [...state.usedQuiz, state.quiz.item.q],
-    capital: state.capital + (ok ? QUIZ_BONUS : 0),
-    history: [
-      ...state.history,
-      `Vòng ${state.round}: trả lời ${ok ? "đúng" : "chưa đúng"} câu hỏi kiến thức${ok ? ` (thưởng +${QUIZ_BONUS} triệu)` : ""}.`,
+    usedQuiz: [...state.usedQuiz, item.q],
+    learned: [
+      ...state.learned,
+      { title: actions[p.type].title, q: item.q, tag: item.tag, explain: item.explain, correct: ok },
     ],
   };
+}
+
+// Kết quả của các câu đã trả lời trong lần đầu tư đang chờ.
+export function pendingOutcome(p) {
+  const asked = p.items.length;
+  const correct = p.picks.filter((pick, k) => pick === p.items[k].answer).length;
+  const need = p.type === "overhaul" ? OVERHAUL_PASS : asked;
+  return { asked, correct, need, success: correct >= need };
+}
+
+// Sau khi xem lời giải: sang câu kế tiếp, hoặc hoàn tất đầu tư nếu đã hết câu.
+export function advancePending(state) {
+  const p = state.pending;
+  if (!p || p.picks.length <= p.idx) return state;
+  if (p.idx < p.items.length - 1) return { ...state, pending: { ...p, idx: p.idx + 1 } };
+  return invest(state, p.type);
 }
 
 const STAT_NAMES = { capital: "Vốn", technology: "Công nghệ", human: "Nhân lực", market: "Thị trường" };
@@ -690,18 +1177,25 @@ export function resolveChoice(state, i) {
 }
 
 export function invest(state, type) {
-  if (state.finished || state.quiz.picked === null) return state;
+  if (state.finished) return state;
   if (state.choice && state.choice.picked === null) return state;
+  let outcome = null;
+  if (type === "reserve") {
+    if (state.pending) return state;
+  } else {
+    const p = state.pending;
+    if (!p || p.type !== type || p.picks.length < p.items.length) return state;
+    outcome = pendingOutcome(p);
+  }
   const cost = costOf(type, state);
   if (state.capital < cost) return state;
   if (lockReason(type, state)) return state;
 
-  const next = { ...state, history: [...state.history], badges: [...state.badges] };
+  const next = { ...state, pending: null, history: [...state.history], badges: [...state.badges] };
   next.capital -= cost;
 
   const keys = ["technology", "human", "market"];
-  const chance = successChance(type, state);
-  const success = type === "reserve" ? true : Math.random() < chance;
+  const success = type === "reserve" ? true : outcome.success;
 
   if (type === "reserve") {
     next.capital += 40;
@@ -755,20 +1249,12 @@ export function invest(state, type) {
     ...state.trend,
     { round: state.round, competition: next.competition, capital: next.capital, technology: next.technology, human: next.human, market: next.market },
   ];
-  next.learned = [
-    ...state.learned,
-    {
-      title: state.event.title,
-      q: state.quiz.item.q,
-      explain: state.quiz.item.explain,
-      correct: state.quiz.picked === state.quiz.item.answer,
-    },
-  ];
   next.last = {
     round: state.round,
     action: type,
     success,
-    chance,
+    correct: outcome ? outcome.correct : 0,
+    asked: outcome ? outcome.asked : 0,
     failNote: success ? null : FAIL_TEXT[type],
     eventTitle: state.event.title,
     eventNote: note,
@@ -777,7 +1263,7 @@ export function invest(state, type) {
   };
   next.history.push(
     `Vòng ${state.round}: ${actions[type].title}${cost ? ` (chi ${cost} triệu)` : ""}` +
-      `${type === "reserve" ? "" : success ? ", thành công." : ", thất bại."} ` +
+      `${type === "reserve" ? "" : `${success ? ", thành công" : ", thất bại"} (đúng ${outcome.correct}/${outcome.asked} câu).`} ` +
       `Sự kiện "${state.event.title}": ${note} ` +
       `Lợi nhuận ròng ${profit >= 0 ? "+" : ""}${profit} triệu, vốn còn ${next.capital} triệu.` +
       (newBadges.length ? ` Mở khóa danh hiệu: ${newBadges.join(", ")}.` : "")
@@ -795,7 +1281,6 @@ export function invest(state, type) {
     const drawn = drawEvent(state.deck, state.event.id);
     next.event = drawn.event;
     next.deck = drawn.deck;
-    next.quiz = { picked: null, item: pickQuiz(next.event, next.usedQuiz) };
     next.choice = null;
     next.choiceDeck = state.choiceDeck;
     if (Math.random() < CHOICE_RATE) {
@@ -808,7 +1293,7 @@ export function invest(state, type) {
 }
 
 export function calcScore(s) {
-  const raw = s.competition * 15 + Math.round(s.capital / 8) + s.quizCorrect * 30 + s.badges.length * 50;
+  const raw = s.competition * 15 + Math.round(s.capital / 8) + s.quizCorrect * 20 + s.badges.length * 50;
   return s.bankrupt ? Math.round(raw / 2) : Math.max(0, raw);
 }
 

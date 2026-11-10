@@ -9,7 +9,7 @@ import {
 import "./style.css";
 import * as E from "./engine.js";
 
-const { TOTAL_ROUNDS, QUIZ_BONUS, STAGES, BADGES, actions, actionLessons } = E;
+const { TOTAL_ROUNDS, STAGES, BADGES, actions, actionLessons } = E;
 
 const actionIcons = { technology: Cpu, human: Users, market: Globe2, overhaul: Sparkles, reserve: PiggyBank };
 
@@ -145,7 +145,7 @@ function PrevResult({ last }) {
         <summary>Bài học vòng trước</summary>
         {last.action !== "reserve" && (
           <p className={last.success ? "tone-ok" : "tone-bad"}>
-            {last.success ? "Đầu tư thành công." : `Đầu tư thất bại. ${last.failNote}`} (xác suất thành công {Math.round(last.chance * 100)}%)
+            {last.success ? "Đầu tư thành công." : `Đầu tư thất bại. ${last.failNote}`} (đúng {last.correct}/{last.asked} câu hỏi)
           </p>
         )}
         <p>{actionLessons[last.action].text}</p>
@@ -156,7 +156,7 @@ function PrevResult({ last }) {
 }
 
 // Cửa sổ từng bước của vòng chơi: sự kiện, tình huống bất ngờ, câu hỏi.
-function FlowModal({ phase, state, readonly = false, onContinue, onChoose, onAnswer }) {
+function FlowModal({ phase, state, readonly = false, onContinue, onChoose, onAnswer, onCancel }) {
   const btnRef = useRef(null);
   useEffect(() => {
     if (btnRef.current) btnRef.current.focus();
@@ -167,19 +167,23 @@ function FlowModal({ phase, state, readonly = false, onContinue, onChoose, onAns
 
   const hasChoice = !!state.choice;
   const total = 2 + (hasChoice ? 1 : 0);
-  const kind = phase.startsWith("choice") ? "choice" : phase.startsWith("quiz") ? "quiz" : "event";
+  const kind = phase.startsWith("choice") ? "choice" : phase.startsWith("act") ? "quiz" : "event";
   const stepNo = kind === "event" ? 1 : kind === "choice" ? 2 : hasChoice ? 3 : 2;
   const META = {
     event: { tone: "warn", Icon: AlertTriangle, label: `SỰ KIỆN THỊ TRƯỜNG · VÒNG ${state.round}` },
     choice: { tone: "purple", Icon: Shuffle, label: "TÌNH HUỐNG BẤT NGỜ" },
-    quiz: { tone: "accent", Icon: HelpCircle, label: "CÂU HỎI KIẾN THỨC" },
+    quiz: { tone: "accent", Icon: HelpCircle, label: state.pending ? `CÂU HỎI · ${actions[state.pending.type].title.toUpperCase()}` : "CÂU HỎI KIẾN THỨC" },
   };
   const meta = META[kind];
   const Icon = meta.Icon;
-  const q = state.quiz.item;
-  const quizOk = state.quiz.picked !== null && state.quiz.picked === q.answer;
+  const pd = state.pending;
+  const q = pd ? pd.items[pd.idx] : null;
+  const picked = pd ? pd.picks[pd.idx] : undefined;
+  const quizOk = !!q && picked !== undefined && picked === q.answer;
+  const isLastQ = !!pd && pd.idx === pd.items.length - 1;
+  const outcome = pd && picked !== undefined ? E.pendingOutcome(pd) : null;
   const letter = (i) => String.fromCharCode(65 + i);
-  const continueLabel = readonly ? "Đóng" : phase === "quiz-result" ? "Tiếp tục đến phần đầu tư" : "Tiếp tục";
+  const continueLabel = readonly ? "Đóng" : phase === "act-result" ? (isLastQ ? "Hoàn tất đầu tư" : "Câu tiếp theo") : "Tiếp tục";
 
   return (
     <div className="modal-back flow" onMouseDown={(e) => { if (readonly && e.target === e.currentTarget) onContinue(); }}>
@@ -188,7 +192,7 @@ function FlowModal({ phase, state, readonly = false, onContinue, onChoose, onAns
           <span className="flow-ic"><Icon size={20} /></span>
           <div>
             <small>{meta.label}</small>
-            {!readonly && <span className="flow-step">Bước {stepNo}/{total}</span>}
+            {!readonly && <span className="flow-step">{kind === "quiz" && pd ? `Câu ${pd.idx + 1}/${pd.items.length}` : `Bước ${stepNo}/${total}`}</span>}
           </div>
         </div>
 
@@ -250,8 +254,9 @@ function FlowModal({ phase, state, readonly = false, onContinue, onChoose, onAns
             </>
           )}
 
-          {phase === "quiz" && (
+          {phase === "act-q" && q && (
             <>
+              {q.tag && <span className="q-tag">{q.tag}</span>}
               <h3 className="flow-title q">{q.q}</h3>
               <div className="flow-options">
                 {q.options.map((opt, i) => (
@@ -262,31 +267,45 @@ function FlowModal({ phase, state, readonly = false, onContinue, onChoose, onAns
                 ))}
               </div>
               <div className="fx-row reward">
-                <span className="fx up">Đúng: +{QUIZ_BONUS} triệu</span>
-                <span className="fx up">+10% tỷ lệ thành công vòng này</span>
+                <span className="fx up">
+                  {pd.type === "overhaul" ? `Cần đúng ít nhất ${E.OVERHAUL_PASS}/${pd.items.length} câu để thành công` : "Đúng thì đầu tư thành công, sai thì thất bại"}
+                </span>
               </div>
             </>
           )}
 
-          {phase === "quiz-result" && state.quiz.picked !== null && (
+          {phase === "act-result" && q && picked !== undefined && (
             <>
-              <div className={quizOk ? "verdict ok" : "verdict bad"}>
-                {quizOk ? `Chính xác! +${QUIZ_BONUS} triệu và +10% tỷ lệ thành công vòng này.` : "Chưa đúng."}
-              </div>
+              <div className={quizOk ? "verdict ok" : "verdict bad"}>{quizOk ? "Chính xác!" : "Chưa đúng."}</div>
+              {q.tag && <span className="q-tag">{q.tag}</span>}
               <p className="flow-desc"><b>{q.q}</b></p>
               <p className="flow-desc">
                 Đáp án đúng: <b>{letter(q.answer)}. {q.options[q.answer]}</b>
-                {!quizOk && <> · Bạn chọn: {letter(state.quiz.picked)}. {q.options[state.quiz.picked]}</>}
+                {!quizOk && <> · Bạn chọn: {letter(picked)}. {q.options[picked]}</>}
               </p>
               <div className="explain-box">{q.explain}</div>
+              {outcome && pd.items.length > 1 && !isLastQ && (
+                <p className="flow-desc">Đã đúng {outcome.correct}/{pd.idx + 1} câu. Cần đúng ít nhất {outcome.need}/{outcome.asked} câu.</p>
+              )}
+              {outcome && isLastQ && (
+                <div className={outcome.success ? "verdict ok" : "verdict bad"}>
+                  {outcome.success ? "Đầu tư sẽ thành công" : "Đầu tư sẽ thất bại, chỉ nhận một phần nhỏ hiệu quả"}
+                  {pd.items.length > 1 ? ` (đúng ${outcome.correct}/${outcome.asked} câu)` : ""}.
+                </div>
+              )}
             </>
           )}
         </div>
 
         <div className="flow-foot">
           {phase === "choice" && <span className="hint">Chọn một phương án để tiếp tục.</span>}
-          {phase === "quiz" && <span className="hint">Trả lời để mở khóa phần đầu tư.</span>}
-          {phase !== "choice" && phase !== "quiz" && (
+          {phase === "act-q" && (
+            <>
+              <span className="hint">{pd.type === "overhaul" ? "Ba câu liên tiếp, mỗi hướng một câu." : "Chọn một đáp án để hoàn tất đầu tư."}</span>
+              {!readonly && pd.picks.length === 0 && <button className="secondary" onClick={onCancel}>Quay lại</button>}
+            </>
+          )}
+          {phase !== "choice" && phase !== "act-q" && (
             <button className="primary flow-btn" ref={btnRef} onClick={onContinue}>
               {continueLabel} {!readonly && <ArrowRight size={16} />}
             </button>
@@ -362,16 +381,16 @@ function GuideModal({ onClose, onTheory }) {
               <ol>
                 <li>Một cửa sổ hiện sự kiện thị trường. Điều kiện thưởng hoặc phạt được tính sau khi bạn đầu tư.</li>
                 <li>Nếu có tình huống bất ngờ, chọn một phương án. Kết quả có thể may rủi.</li>
-                <li>Trả lời câu hỏi kiến thức: đúng được +{QUIZ_BONUS} triệu và +10% tỷ lệ thành công.</li>
-                <li>Chọn hướng đầu tư. Rê chuột vào một thẻ để xem trước tác động lên các chỉ số.</li>
+                <li>Chọn hướng đầu tư (rê chuột vào thẻ để xem trước tác động). Mỗi hướng đầu tư hiện một câu hỏi kiến thức: trả lời đúng thì đầu tư thành công, sai thì thất bại.</li>
+                <li>Tích lũy dự trữ không có câu hỏi. Chuyển đổi toàn diện có 3 câu liên tiếp (công nghệ, nhân lực, thị trường), đúng ít nhất 2 câu là thành công.</li>
               </ol>
               <h4>Rủi ro và chi phí</h4>
               <ul>
                 <li>Đầu tư có thể thất bại: vẫn mất vốn, chỉ nhận một phần nhỏ hiệu quả.</li>
                 <li>Mỗi lần đầu tư vào cùng một hướng, lần sau đắt hơn.</li>
                 <li>Chỉ số không được đầu tư xuống cấp nhẹ mỗi vòng, giống máy móc hao mòn.</li>
-                <li>Chuyển đổi toàn diện nâng cả ba chỉ số, nhưng đắt dần, dễ thất bại hơn và phải chờ 2 lượt mới dùng lại. Đây là cách duy nhất để chạm 100/100.</li>
-                <li>Mỗi danh hiệu tăng thêm 3% tỷ lệ thành công và có thưởng riêng.</li>
+                <li>Chuyển đổi toàn diện nâng cả ba chỉ số, nhưng đắt dần, phải trả lời 3 câu và phải chờ 2 lượt mới dùng lại. Đây là cách duy nhất để chạm 100/100.</li>
+                <li>Danh hiệu mở khóa vĩnh viễn khi đạt điều kiện và có thưởng riêng.</li>
               </ul>
               <h4>Thắng và thua</h4>
               <p>Cuối game, xếp hạng theo năng lực cạnh tranh và vốn: <b>Hoàn hảo</b> (100), <b>Xuất sắc</b> (từ {R.excellent}), <b>Rất tốt</b> (từ {R.top.c} và vốn từ {R.top.cap} triệu), <b>Khá tốt</b> (từ {R.good}), <b>Cần cải thiện</b> (từ {R.ok}), còn lại là <b>Tụt hậu</b>. Vốn về 0 là <b>phá sản</b>.</p>
@@ -406,7 +425,7 @@ function App() {
   const [reviewTab, setReviewTab] = useState("quiz");
   const [guideOpen, setGuideOpen] = useState(false);
   const [hoverAct, setHoverAct] = useState(null);
-  const [ack, setAck] = useState({ event: 0, choice: 0, quiz: 0 }); // vòng mà người chơi đã xác nhận từng bước
+  const [ack, setAck] = useState({ event: 0, choice: 0 }); // vòng mà người chơi đã xác nhận từng bước
   const [view, setView] = useState(null); // xem lại sự kiện, tình huống hoặc lời giải
   const guideChecked = useRef(false);
   const prev = useRef({ page: "home", round: 1, finished: false, flowDone: false });
@@ -417,18 +436,15 @@ function App() {
 
   const eventDone = ack.event === state.round;
   const choiceDone = !state.choice || (state.choice.picked !== null && ack.choice === state.round);
-  const quizDone = state.quiz.picked !== null && ack.quiz === state.round;
-  const flowDone = eventDone && choiceDone && quizDone;
+  const flowDone = eventDone && choiceDone;
   const ready = flowDone;
-  const quizOk = state.quiz.picked !== null && state.quiz.picked === state.quiz.item.answer;
   // Cửa sổ nào đang cần người chơi xử lý
   let phase = null;
   if (page === "simulation" && !state.finished && !guideOpen) {
     if (!eventDone) phase = "event";
     else if (state.choice && state.choice.picked === null) phase = "choice";
     else if (state.choice && ack.choice !== state.round) phase = "choice-result";
-    else if (state.quiz.picked === null) phase = "quiz";
-    else if (ack.quiz !== state.round) phase = "quiz-result";
+    else if (state.pending) phase = state.pending.picks.length > state.pending.idx ? "act-result" : "act-q";
   }
 
   // Chủ đề: áp dụng, lưu, và theo dõi chế độ tự động của hệ điều hành
@@ -487,7 +503,7 @@ function App() {
     setSideTab("badges");
     setReviewTab("quiz");
     setHoverAct(null);
-    setAck({ event: 0, choice: 0, quiz: 0 });
+    setAck({ event: 0, choice: 0 });
     setView(null);
     setPage("simulation");
   }
@@ -495,7 +511,6 @@ function App() {
   const steps = [
     { label: "Sự kiện", done: eventDone },
     ...(state.choice ? [{ label: "Tình huống", done: choiceDone }] : []),
-    { label: "Câu hỏi", done: quizDone },
     { label: "Đầu tư", done: false },
   ];
   const curStep = steps.findIndex((s) => !s.done);
@@ -503,7 +518,7 @@ function App() {
   const onContinue = () => {
     if (phase === "event") setAck((a) => ({ ...a, event: state.round }));
     else if (phase === "choice-result") setAck((a) => ({ ...a, choice: state.round }));
-    else if (phase === "quiz-result") setAck((a) => ({ ...a, quiz: state.round }));
+    else if (phase === "act-result") setState((s) => E.advancePending(s));
   };
   const pv = hoverAct && ready && !state.finished ? E.previewAction(hoverAct, state) : null;
   const predComp = pv
@@ -590,8 +605,8 @@ function App() {
               <div className="steps">
                 {[
                   ["1", "Đọc sự kiện", "Mỗi vòng có một biến động thị trường, đôi khi kèm tình huống bất ngờ cần bạn chọn."],
-                  ["2", "Trả lời câu hỏi", "Đúng được thưởng vốn và tăng tỷ lệ thành công, lời giải thường gợi ý cách ứng phó."],
-                  ["3", "Chọn đầu tư", "Có thể thất bại, và mỗi lần chi vào cùng một hướng sẽ đắt hơn. Chỉ số bị bỏ bê xuống cấp nhẹ."],
+                  ["2", "Chọn đầu tư", "Mỗi lần đầu tư hiện câu hỏi kiến thức: đúng thì thành công, sai thì thất bại. Chi vào cùng một hướng sẽ đắt dần."],
+                  ["3", "Học từ lời giải", "Mỗi câu có lời giải gắn với lý luận Mác. Màn tổng kết gợi ý chủ đề cần ôn lại."],
                   ["4", "Mở danh hiệu", "Đạt ngưỡng chỉ số để nhận thưởng vĩnh viễn. Dùng chuyển đổi toàn diện đúng lúc để hướng tới 100/100."]
                 ].map(([num, title, text]) => (
                   <div className="step" key={num}>
@@ -660,7 +675,7 @@ function App() {
                       <div className="last-body">
                         {state.last.action !== "reserve" && (
                           <p className={state.last.success ? "tone-ok" : "tone-bad"}>
-                            {state.last.success ? "Đầu tư thành công." : `Đầu tư thất bại. ${state.last.failNote}`} (xác suất thành công {Math.round(state.last.chance * 100)}%)
+                            {state.last.success ? "Đầu tư thành công." : `Đầu tư thất bại. ${state.last.failNote}`} (đúng {state.last.correct}/{state.last.asked} câu hỏi)
                           </p>
                         )}
                         <p>{actionLessons[state.last.action].text}</p>
@@ -707,22 +722,6 @@ function App() {
                       </div>
                     )}
 
-                    {quizDone && (
-                      <div className={quizOk ? "recap ok" : "recap bad"}>
-                        <span className="recap-ic"><HelpCircle size={16} /></span>
-                        <div className="recap-main">
-                          <small>CÂU HỎI KIẾN THỨC</small>
-                          <b>{quizOk ? "Chính xác!" : "Chưa đúng."}</b>
-                          <span>
-                            {quizOk
-                              ? `+${QUIZ_BONUS} triệu và +10% tỷ lệ thành công vòng này`
-                              : `Đáp án đúng: ${String.fromCharCode(65 + state.quiz.item.answer)}. ${state.quiz.item.options[state.quiz.item.answer]}`}
-                          </span>
-                        </div>
-                        <button className="linkbtn" onClick={() => setView("quiz")}>Xem lời giải</button>
-                      </div>
-                    )}
-
                     {ready ? (
                       <div id="sim-actions" className="step-box act-box">
                         <div className="box-title"><TrendingUp size={16} /> Quyết định đầu tư</div>
@@ -732,10 +731,9 @@ function App() {
                             const cost = E.costOf(key, state);
                             const noMoney = state.capital < cost;
                             const locked = E.lockReason(key, state);
-                            const chance = Math.round(E.successChance(key, state) * 100);
                             return (
                               <button className={key === "overhaul" ? "act-card special" : "act-card"} key={key}
-                                onClick={() => { setHoverAct(null); setState((s) => E.invest(s, key)); }}
+                                onClick={() => { setHoverAct(null); setState((s) => E.beginAction(s, key)); }}
                                 onMouseEnter={() => setHoverAct(key)} onMouseLeave={() => setHoverAct(null)}
                                 onFocus={() => setHoverAct(key)} onBlur={() => setHoverAct(null)}
                                 disabled={noMoney || !!locked}>
@@ -746,7 +744,7 @@ function App() {
                                 <p>{item.desc}</p>
                                 <div className="act-meta">
                                   <span className="chip">{cost ? `Chi ${cost} triệu` : "Không tốn vốn"}</span>
-                                  {key !== "reserve" && !locked && <span className="chip ok">Thành công {chance}%</span>}
+                                  {!locked && <span className="chip ok">{E.QUESTIONS_PER[key] === 0 ? "Không cần câu hỏi" : E.QUESTIONS_PER[key] === 1 ? "1 câu hỏi" : `${E.QUESTIONS_PER[key]} câu hỏi · đúng ≥ ${E.OVERHAUL_PASS}`}</span>}
                                   {locked && <span className="chip warn">{locked}</span>}
                                   {noMoney && !locked && <span className="chip warn">Thiếu vốn</span>}
                                 </div>
@@ -802,9 +800,20 @@ function App() {
                         <button className={reviewTab === "choice" ? "on" : ""} onClick={() => setReviewTab("choice")}>Tình huống ({state.choiceLog.length})</button>
                       </div>
                       <div className="review-list">
+                        {reviewTab === "quiz" && state.learned.length > 0 && (() => {
+                          const wrong = {};
+                          state.learned.forEach((it) => { if (!it.correct && it.tag) wrong[it.tag] = (wrong[it.tag] || 0) + 1; });
+                          const list = Object.entries(wrong);
+                          return (
+                            <p className="review-tip">
+                              {list.length ? <><b>Nên ôn lại:</b> {list.map(([tg, n]) => `${tg} (${n} câu)`).join(" · ")}. Đọc phần giải thích bên dưới và mục Lý thuyết.</> : "Bạn trả lời đúng tất cả câu hỏi đã gặp trong ván này."}
+                            </p>
+                          );
+                        })()}
                         {reviewTab === "quiz" && state.learned.map((item, i) => (
                           <div className="review-item" key={i}>
                             <h4>{item.correct ? "✓" : "✗"} {item.q}</h4>
+                            {item.tag && <span className="q-tag">{item.tag}</span>}
                             <p>{item.explain}</p>
                           </div>
                         ))}
@@ -872,7 +881,7 @@ function App() {
                             );
                           })}
                         </div>
-                        <p className="note">Mỗi danh hiệu còn tăng 3% tỷ lệ thành công khi đầu tư.</p>
+                        <p className="note">Danh hiệu mở khóa vĩnh viễn khi đạt điều kiện.</p>
                       </>
                     ) : (
                       <div className="log-list">
@@ -938,18 +947,19 @@ function App() {
 
       {phase && (
         <FlowModal
-          key={phase + state.round}
+          key={phase + state.round + (state.pending ? state.pending.idx : "")}
           phase={phase}
           state={state}
           onContinue={onContinue}
           onChoose={(i) => setState((s) => E.resolveChoice(s, i))}
-          onAnswer={(i) => setState((s) => E.answerQuiz(s, i))}
+          onAnswer={(i) => setState((s) => E.answerPending(s, i))}
+          onCancel={() => setState((s) => E.cancelAction(s))}
         />
       )}
       {view && !phase && !guideOpen && (
         <FlowModal
           key={"view-" + view}
-          phase={view === "event" ? "event" : view === "choice" ? "choice-result" : "quiz-result"}
+          phase={view === "event" ? "event" : "choice-result"}
           state={state}
           readonly
           onContinue={() => setView(null)}
